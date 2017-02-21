@@ -16,8 +16,8 @@ except ImportError:
 
 # If modifying these scopes, delete your previously saved credentials
 # at ~/.credentials/gmail-python-quickstart.json
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly',
-          'https://mail.google.com/',
+SCOPES = ['https://mail.google.com/',
+          'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.modify',
           'https://www.googleapis.com/auth/gmail.compose',
           'https://www.googleapis.com/auth/gmail.send']
