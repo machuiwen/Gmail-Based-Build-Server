@@ -38,7 +38,7 @@ def main():
 
         # download attachments
         test_id = "%09d" % random.randint(0, 100000000)
-        store_dir = os.path.join(ROOT_DIR, test_id)
+        store_dir = os.path.join(ROOT_DIR, 'target', test_id)
         if not os.path.exists(store_dir):
             os.makedirs(store_dir)
 
