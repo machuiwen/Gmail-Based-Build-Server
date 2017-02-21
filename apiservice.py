@@ -22,7 +22,7 @@ SCOPES = ['https://mail.google.com/',
           'https://www.googleapis.com/auth/gmail.compose',
           'https://www.googleapis.com/auth/gmail.send']
 
-CLIENT_SECRET_FILE = 'client_secret.json'
+CLIENT_SECRET_FILE = 'conf/client_secret.json'
 CREDENTIALS_FILE = 'gmail-python-quickstart.json'
 APPLICATION_NAME = 'Gmail API Python Quickstart'
 
