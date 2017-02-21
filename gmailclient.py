@@ -162,5 +162,73 @@ class GmailClient(object):
         except errors.HttpError, error:
             print('An error occurred: %s' % error)
 
+
+    def GetAttachments(self, user_id, msg_id, store_dir):
+        """Get and store attachment from Message with given id.
+
+        Args:
+            user_id: User's email address. The special value "me"
+            can be used to indicate the authenticated user.
+            msg_id: ID of Message containing attachment.
+            store_dir: The directory used to store attachments.
+        """
+        try:
+            message = self.service.users().messages().get(userId=user_id, id=msg_id).execute()
+
+            for part in message['payload']['parts']:
+                if part['filename']:
+                    attachment_id = part['body']['attachmentId']
+                    attachment = self.service.users().messages().attachments().get(
+                        userId=user_id, messageId=msg_id, id=attachment_id).execute()
+
+                    file_data = base64.urlsafe_b64decode(attachment['data'].encode('UTF-8'))
+                    path = os.path.join(store_dir, part['filename'])
+
+                    with open(path, 'w') as f:
+                        f.write(file_data)
+
+            print('Attachments stored in: %s' % store_dir)
+
+        except errors.HttpError, error:
+            print('An error occurred: %s' % error)
+
+
+    def ModifyMessage(self, user_id, msg_id, msg_labels):
+        """Add/remove labels to a given message.
+
+        Args:
+            user_id: User's email address. The special value "me"
+            can be used to indicate the authenticated user.
+            msg_id: The id of the message required.
+            msg_labels: The change in labels.
+
+        Returns:
+            Modified message, containing updated labelIds, id and threadId.
+        """
+        try:
+            message = self.service.users().messages().modify(userId=user_id, id=msg_id,
+                body=msg_labels).execute()
+
+            label_ids = message['labelIds']
+
+            print('Message ID: %s - With Label IDs %s' % (msg_id, label_ids))
+            return message
+        except errors.HttpError, error:
+            print('An error occurred: %s' % error)
+
+
+    @staticmethod
+    def CreateMsgLabels(add_labels=[], remove_labels=[]):
+        """Create object to update labels.
+
+        Returns:
+            A label update object.
+        """
+        label_update = {}
+        label_update['removeLabelIds'] = remove_labels
+        label_update['addLabelIds'] = add_labels
+        return label_update
+
+
 if __name__ == '__main__':
     pass
