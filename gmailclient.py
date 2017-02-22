@@ -58,8 +58,7 @@ class GmailClient(object):
 
 
     @staticmethod
-    def CreateMessageWithAttachment(sender, to, subject, message_text, file_dir,
-                                    filename):
+    def CreateMessageWithAttachment(sender, to, subject, message_text, attached_files):
         """Create a message for an email.
 
         Args:
@@ -67,8 +66,7 @@ class GmailClient(object):
         to: Email address of the receiver.
         subject: The subject of the email message.
         message_text: The text of the email message.
-        file_dir: The directory containing the file to be attached.
-        filename: The name of the file to be attached.
+        attached_files: The full path of the attached files. Type: List.
 
         Returns:
         An object containing a base64url encoded email object.
@@ -81,33 +79,31 @@ class GmailClient(object):
         msg = MIMEText(message_text)
         message.attach(msg)
 
-        path = os.path.join(file_dir, filename)
-        content_type, encoding = mimetypes.guess_type(path)
+        for path in attached_files:
+            filename = path.split('/')[-1]
+            content_type, encoding = mimetypes.guess_type(path)
 
-        if content_type is None or encoding is not None:
-            content_type = 'application/octet-stream'
+            if content_type is None or encoding is not None:
+                content_type = 'application/octet-stream'
+
             main_type, sub_type = content_type.split('/', 1)
 
-        if main_type == 'text':
-            fp = open(path, 'rb')
-            msg = MIMEText(fp.read(), _subtype=sub_type)
-            fp.close()
-        elif main_type == 'image':
-            fp = open(path, 'rb')
-            msg = MIMEImage(fp.read(), _subtype=sub_type)
-            fp.close()
-        elif main_type == 'audio':
-            fp = open(path, 'rb')
-            msg = MIMEAudio(fp.read(), _subtype=sub_type)
-            fp.close()
-        else:
-            fp = open(path, 'rb')
-            msg = MIMEBase(main_type, sub_type)
-            msg.set_payload(fp.read())
-            fp.close()
+            if main_type == 'text':
+                with open(path, 'rb') as fp:
+                    msg = MIMEText(fp.read(), _subtype=sub_type)
+            elif main_type == 'image':
+                with open(path, 'rb') as fp:
+                    msg = MIMEImage(fp.read(), _subtype=sub_type)
+            elif main_type == 'audio':
+                with open(path, 'rb') as fp:
+                    msg = MIMEAudio(fp.read(), _subtype=sub_type)
+            else:
+                with open(path, 'rb') as fp:
+                    msg = MIMEBase(main_type, sub_type)
+                    msg.set_payload(fp.read())
 
-        msg.add_header('Content-Disposition', 'attachment', filename=filename)
-        message.attach(msg)
+            msg.add_header('Content-Disposition', 'attachment', filename=filename)
+            message.attach(msg)
 
         return {'raw': base64.urlsafe_b64encode(message.as_string())}
 

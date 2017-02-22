@@ -43,6 +43,7 @@ def main():
             os.makedirs(store_dir)
 
         client.GetAttachments('me', msg['id'], store_dir)
+        attachments = set(os.listdir(store_dir))
 
         # attach source code
         os.chdir(store_dir)
@@ -62,10 +63,19 @@ def main():
         log("Total time: %.3f seconds" % total_time)
         log("################################################")
 
+        # check generated files
+        generated_files = set(os.listdir(store_dir)) - attachments
+        generated_files = [os.path.join(store_dir, f) for f in generated_files]
+
         # send email
         subject = "Result for running %s, Test ID: %s" % (pycode.split('/')[-1], test_id)
-        content = '\n'.join(LOG)
-        message = GmailClient.CreateMessage(MY_EMAIL, FROM_EMAIL, subject, content)
+        content = '\n'.join(LOG) + '\n'
+        if generated_files:
+            message = GmailClient.CreateMessageWithAttachment(MY_EMAIL, FROM_EMAIL, subject,
+                                                              content, generated_files)
+        else:
+            message = GmailClient.CreateMessage(MY_EMAIL, FROM_EMAIL, subject, content)
+
         client.SendMessage('me', message)
 
         # mark as read
