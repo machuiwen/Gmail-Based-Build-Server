@@ -9,6 +9,7 @@ import mimetypes
 import os
 from apiclient import errors
 from apiservice import GmailService
+import re
 
 
 class GmailClient(object):
@@ -17,16 +18,24 @@ class GmailClient(object):
         self.service = GmailService().get_service()
 
 
+    @staticmethod
+    def _get_message_header(message, key):
+        for h in message['payload']['headers']:
+            if h['name'].lower() == key.lower():
+                return h['value']
+        raise ValueError("Message %s doesn't have header '%s'." % (message['id'], key))
+
+
     def SendMessage(self, user_id, message):
         """Send an email message.
 
         Args:
-        user_id: User's email address. The special value "me"
-        can be used to indicate the authenticated user.
-        message: Message to be sent.
+            user_id: User's email address. The special value "me"
+            can be used to indicate the authenticated user.
+            message: Message to be sent.
 
         Returns:
-        Sent Message.
+            Sent Message.
         """
         try:
             message = (self.service.users().messages().send(userId=user_id, body=message)
@@ -42,13 +51,13 @@ class GmailClient(object):
         """Create a message for an email.
 
         Args:
-        sender: Email address of the sender.
-        to: Email address of the receiver.
-        subject: The subject of the email message.
-        message_text: The text of the email message.
+            sender: Email address of the sender.
+            to: Email address of the receiver.
+            subject: The subject of the email message.
+            message_text: The text of the email message.
 
         Returns:
-        An object containing a base64url encoded email object.
+            An object containing a base64url encoded email object.
         """
         message = MIMEText(message_text)
         message['to'] = to
@@ -58,18 +67,18 @@ class GmailClient(object):
 
 
     @staticmethod
-    def CreateMessageWithAttachment(sender, to, subject, message_text, attached_files):
+    def CreateMessageWithAttachment(sender, to, subject, message_text, attached_files=[]):
         """Create a message for an email.
 
         Args:
-        sender: Email address of the sender.
-        to: Email address of the receiver.
-        subject: The subject of the email message.
-        message_text: The text of the email message.
-        attached_files: The full path of the attached files. Type: List.
+            sender: Email address of the sender.
+            to: Email address of the receiver.
+            subject: The subject of the email message.
+            message_text: The text of the email message.
+            attached_files: The full path of the attached files. Type: List.
 
         Returns:
-        An object containing a base64url encoded email object.
+            An object containing a base64url encoded email object.
         """
         message = MIMEMultipart()
         message['to'] = to
@@ -106,6 +115,67 @@ class GmailClient(object):
             message.attach(msg)
 
         return {'raw': base64.urlsafe_b64encode(message.as_string())}
+
+
+    @staticmethod
+    def CreateReplyMessageWithAttachment(in_message, replyer, reply_text, attached_files=[]):
+        """Create a reply message for an email.
+
+        Args:
+            in_message: The message to be replied to.
+            reply_text: The text of the reply message.
+            attached_files: The full path of the attached files. Type: List.
+
+        Returns:
+            An object containing a base64url encoded email object.
+        """
+
+        message = MIMEMultipart()
+        sender = re.findall('<([^>]*)>', GmailClient._get_message_header(in_message, 'From'))[0]
+        subject = GmailClient._get_message_header(in_message, 'Subject')
+        message['from'] = replyer
+        message['to'] = sender
+        message['subject'] = 'Re: ' + subject
+        message_internal_id = GmailClient._get_message_header(in_message, 'Message-Id')
+        message['In-Reply-To'] = message_internal_id
+        try:
+            references = GmailClient._get_message_header(in_message, 'References')
+        except ValueError:
+            message['References'] = message_internal_id
+        else:
+            message['References'] = references + ' ' + message_internal_id
+
+        msg = MIMEText(reply_text)
+        message.attach(msg)
+
+        for path in attached_files:
+            filename = path.split('/')[-1]
+            content_type, encoding = mimetypes.guess_type(path)
+
+            if content_type is None or encoding is not None:
+                content_type = 'application/octet-stream'
+
+            main_type, sub_type = content_type.split('/', 1)
+
+            if main_type == 'text':
+                with open(path, 'rb') as fp:
+                    msg = MIMEText(fp.read(), _subtype=sub_type)
+            elif main_type == 'image':
+                with open(path, 'rb') as fp:
+                    msg = MIMEImage(fp.read(), _subtype=sub_type)
+            elif main_type == 'audio':
+                with open(path, 'rb') as fp:
+                    msg = MIMEAudio(fp.read(), _subtype=sub_type)
+            else:
+                with open(path, 'rb') as fp:
+                    msg = MIMEBase(main_type, sub_type)
+                    msg.set_payload(fp.read())
+
+            msg.add_header('Content-Disposition', 'attachment', filename=filename)
+            message.attach(msg)
+
+        return {'raw': base64.urlsafe_b64encode(message.as_string()),
+                'threadId': in_message['threadId']}
 
 
     def GetMessage(self, user_id, msg_id):
