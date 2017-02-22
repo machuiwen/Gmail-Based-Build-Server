@@ -31,7 +31,7 @@ class GmailClient(object):
         try:
             message = (self.service.users().messages().send(userId=user_id, body=message)
                 .execute())
-            print('Message Id: %s' % message['id'])
+            print('Sent Message Id: %s' % message['id'])
             return message
         except errors.HttpError, error:
             print('An error occurred: %s' % error)
@@ -121,9 +121,6 @@ class GmailClient(object):
         """
         try:
             message = self.service.users().messages().get(userId=user_id, id=msg_id).execute()
-
-            print('Message snippet: %s' % message['snippet'])
-
             return message
         except errors.HttpError, error:
             print('An error occurred: %s' % error)
@@ -204,10 +201,7 @@ class GmailClient(object):
         try:
             message = self.service.users().messages().modify(userId=user_id, id=msg_id,
                 body=msg_labels).execute()
-
             label_ids = message['labelIds']
-
-            print('Message ID: %s - With Label IDs %s' % (msg_id, label_ids))
             return message
         except errors.HttpError, error:
             print('An error occurred: %s' % error)

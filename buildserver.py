@@ -76,8 +76,13 @@ def main():
     q_from_email = get_from_emails_query(WHITELIST_EMAILS)
     query = 'is:unread AND in:inbox AND %s AND has:attachment AND filename:py' % q_from_email
     messages = client.ListMessagesMatchingQuery('me', query)
-    msg_labels = GmailClient.CreateMsgLabels(remove_labels=['UNREAD'])
 
+    # mark messages as read
+    msg_labels = GmailClient.CreateMsgLabels(remove_labels=['UNREAD'])
+    for msg in messages:
+        client.ModifyMessage('me', msg['id'], msg_labels)
+
+    # process messages
     for msg in messages:
         message = client.GetMessage('me', msg['id'])
         from_email = None
@@ -113,9 +118,6 @@ def main():
             message = GmailClient.CreateMessage(MY_EMAIL, from_email, subject, content)
 
         client.SendMessage('me', message)
-
-        # mark as read
-        client.ModifyMessage('me', msg['id'], msg_labels)
 
 
 if __name__ == '__main__':
