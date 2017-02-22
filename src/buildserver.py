@@ -5,12 +5,12 @@ import random
 import time
 import re
 
-ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
 LOG = []
 DEFAULT_PYCODE = 'main.py'
-with open('conf/my_email', 'r') as f:
+with open(os.path.join(ROOT_DIR, 'conf/my_email'), 'r') as f:
     MY_EMAIL = f.readline().strip()
-with open('conf/whitelist_emails', 'r') as f:
+with open(os.path.join(ROOT_DIR, 'conf/whitelist_emails'), 'r') as f:
     lines = f.readlines()
     lines = [l.strip() for l in lines if l.strip()]
     WHITELIST_EMAILS = set(lines)
