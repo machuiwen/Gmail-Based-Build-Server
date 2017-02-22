@@ -3,12 +3,16 @@ import os
 import subprocess
 import random
 import time
+import re
 
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 LOG = []
 with open('conf/my_email', 'r') as f:
     MY_EMAIL = f.readline().strip()
-FROM_EMAIL = MY_EMAIL
+with open('conf/whitelist_emails', 'r') as f:
+    lines = f.readlines()
+    lines = [l.strip() for l in lines if l.strip()]
+    WHITELIST_EMAILS = set(lines)
 
 def run_command(cmd):
     cmd = cmd.strip().split()
@@ -25,16 +29,30 @@ def log(msg):
     print msg
     LOG.append(msg.strip())
 
+def get_from_emails_query(emails):
+    query = '{'
+    for email in emails:
+        query += 'from:%s ' % email
+    query += '}'
+    return query
+
 def main():
     client = GmailClient()
 
     # check inbox for unread messages
-    query = 'is:unread AND in:inbox AND from:%s AND has:attachment AND filename:py' % FROM_EMAIL
+    q_from_email = get_from_emails_query(WHITELIST_EMAILS)
+    query = 'is:unread AND in:inbox AND %s AND has:attachment AND filename:py' % q_from_email
     messages = client.ListMessagesMatchingQuery('me', query)
     msg_labels = GmailClient.CreateMsgLabels(remove_labels=['UNREAD'])
 
     for msg in messages:
         message = client.GetMessage('me', msg['id'])
+        from_email = None
+        for h in message['payload']['headers']:
+            if h['name'] == 'From':
+                from_email = re.findall('<([^>]*)>', h['value'])[0]
+        if not from_email:
+            raise ValueError('Message %s doesn\'t have a from address.' % msg['id'])
 
         # download attachments
         test_id = "%09d" % random.randint(0, 100000000)
@@ -71,10 +89,10 @@ def main():
         subject = "Result for running %s, Test ID: %s" % (pycode.split('/')[-1], test_id)
         content = '\n'.join(LOG) + '\n'
         if generated_files:
-            message = GmailClient.CreateMessageWithAttachment(MY_EMAIL, FROM_EMAIL, subject,
+            message = GmailClient.CreateMessageWithAttachment(MY_EMAIL, from_email, subject,
                                                               content, generated_files)
         else:
-            message = GmailClient.CreateMessage(MY_EMAIL, FROM_EMAIL, subject, content)
+            message = GmailClient.CreateMessage(MY_EMAIL, from_email, subject, content)
 
         client.SendMessage('me', message)
 
