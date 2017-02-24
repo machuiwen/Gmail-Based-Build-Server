@@ -131,11 +131,14 @@ class GmailClient(object):
         """
 
         message = MIMEMultipart()
-        sender = re.findall('<([^>]*)>', GmailClient._get_message_header(in_message, 'From'))[0]
-        subject = GmailClient._get_message_header(in_message, 'Subject')
         message['from'] = replyer
+        sender = re.findall('<([^>]*)>', GmailClient._get_message_header(in_message, 'From'))[0]
         message['to'] = sender
-        message['subject'] = 'Re: ' + subject
+        subject = GmailClient._get_message_header(in_message, 'Subject')
+        if subject.lower().startswith('re: '):
+            message['subject'] = 'Re: ' + subject[4:]
+        else:
+            message['subject'] = 'Re: ' + subject
         message_internal_id = GmailClient._get_message_header(in_message, 'Message-Id')
         message['In-Reply-To'] = message_internal_id
         try:
