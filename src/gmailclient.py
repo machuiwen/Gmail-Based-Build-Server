@@ -26,6 +26,36 @@ class GmailClient(object):
         raise ValueError("Message %s doesn't have header '%s'." % (message['id'], key))
 
 
+    @staticmethod
+    def _add_message_attachments(message, attached_files):
+        for path in attached_files:
+            filename = path.split('/')[-1]
+            content_type, encoding = mimetypes.guess_type(path)
+
+            if content_type is None or encoding is not None:
+                content_type = 'application/octet-stream'
+
+            main_type, sub_type = content_type.split('/', 1)
+
+            if main_type == 'text':
+                with open(path, 'rb') as fp:
+                    msg = MIMEText(fp.read(), _subtype=sub_type)
+            elif main_type == 'image':
+                with open(path, 'rb') as fp:
+                    msg = MIMEImage(fp.read(), _subtype=sub_type)
+            elif main_type == 'audio':
+                with open(path, 'rb') as fp:
+                    msg = MIMEAudio(fp.read(), _subtype=sub_type)
+            else:
+                with open(path, 'rb') as fp:
+                    msg = MIMEBase(main_type, sub_type)
+                    msg.set_payload(fp.read())
+
+            msg.add_header('Content-Disposition', 'attachment', filename=filename)
+            message.attach(msg)
+        return message
+
+
     def SendMessage(self, user_id, message):
         """Send an email message.
 
@@ -87,32 +117,7 @@ class GmailClient(object):
 
         msg = MIMEText(message_text)
         message.attach(msg)
-
-        for path in attached_files:
-            filename = path.split('/')[-1]
-            content_type, encoding = mimetypes.guess_type(path)
-
-            if content_type is None or encoding is not None:
-                content_type = 'application/octet-stream'
-
-            main_type, sub_type = content_type.split('/', 1)
-
-            if main_type == 'text':
-                with open(path, 'rb') as fp:
-                    msg = MIMEText(fp.read(), _subtype=sub_type)
-            elif main_type == 'image':
-                with open(path, 'rb') as fp:
-                    msg = MIMEImage(fp.read(), _subtype=sub_type)
-            elif main_type == 'audio':
-                with open(path, 'rb') as fp:
-                    msg = MIMEAudio(fp.read(), _subtype=sub_type)
-            else:
-                with open(path, 'rb') as fp:
-                    msg = MIMEBase(main_type, sub_type)
-                    msg.set_payload(fp.read())
-
-            msg.add_header('Content-Disposition', 'attachment', filename=filename)
-            message.attach(msg)
+        message = GmailClient._add_message_attachments(message, attached_files)
 
         return {'raw': base64.urlsafe_b64encode(message.as_string())}
 
@@ -150,32 +155,7 @@ class GmailClient(object):
 
         msg = MIMEText(reply_text)
         message.attach(msg)
-
-        for path in attached_files:
-            filename = path.split('/')[-1]
-            content_type, encoding = mimetypes.guess_type(path)
-
-            if content_type is None or encoding is not None:
-                content_type = 'application/octet-stream'
-
-            main_type, sub_type = content_type.split('/', 1)
-
-            if main_type == 'text':
-                with open(path, 'rb') as fp:
-                    msg = MIMEText(fp.read(), _subtype=sub_type)
-            elif main_type == 'image':
-                with open(path, 'rb') as fp:
-                    msg = MIMEImage(fp.read(), _subtype=sub_type)
-            elif main_type == 'audio':
-                with open(path, 'rb') as fp:
-                    msg = MIMEAudio(fp.read(), _subtype=sub_type)
-            else:
-                with open(path, 'rb') as fp:
-                    msg = MIMEBase(main_type, sub_type)
-                    msg.set_payload(fp.read())
-
-            msg.add_header('Content-Disposition', 'attachment', filename=filename)
-            message.attach(msg)
+        message = GmailClient._add_message_attachments(message, attached_files)
 
         return {'raw': base64.urlsafe_b64encode(message.as_string()),
                 'threadId': in_message['threadId']}
