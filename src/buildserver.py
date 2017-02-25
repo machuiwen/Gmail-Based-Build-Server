@@ -125,7 +125,7 @@ class BuildServer(object):
             content = '\n'.join(self.LOG[test_id]) + '\n'
             message = GmailClient.CreateReplyMessageWithAttachment(message, self.my_email, content,
                                                                    generated_files)
-            self.client.SendMessage('me', message)
+            self.client.SendMessage(self.user_id, message)
 
 
 if __name__ == '__main__':
