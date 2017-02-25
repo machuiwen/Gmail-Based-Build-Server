@@ -4,6 +4,7 @@ import subprocess
 import random
 import time
 import re
+from multiprocessing import Pool
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
 DEFAULT_PYCODE_FILENAME = 'main.py'
@@ -20,9 +21,10 @@ class BuildServer(object):
             lines = f.readlines()
             lines = [l.strip() for l in lines if l.strip()]
             self.whitelist_emails = set(lines)
-        self.LOG = []
+        self.LOG = {}
         self.client = GmailClient()
         self.user_id = 'me'
+        self.n_processes = 4
 
 
     @staticmethod
@@ -39,10 +41,12 @@ class BuildServer(object):
         return out.strip()
 
 
-    def log(self, msg):
+    def log(self, test_id, msg):
         msg = str(msg)
         print msg
-        self.LOG.append(msg.strip())
+        if test_id not in self.LOG:
+            self.LOG[test_id] = []
+        self.LOG[test_id].append(msg.strip())
 
 
     def get_whitelist_emails_query(self):
@@ -64,25 +68,25 @@ class BuildServer(object):
             if os.path.join(store_dir, DEFAULT_PYCODE_FILENAME) in code_files:
                 pycode = os.path.join(store_dir, DEFAULT_PYCODE_FILENAME)
             else:
-                self.log("Error: Multiple python files found. Please set one as main.py.")
+                self.log(test_id, "Error: Multiple python files found. Please set one as main.py.")
 
         if pycode:
-            self.log("#################### TEST ID ###################")
-            self.log("Test ID: %s" % test_id)
-            self.log("#################### SRC CODE ##################")
-            self.log(BuildServer.get_cmd_output('cat %s' % pycode))
+            self.log(test_id, "#################### TEST ID ###################")
+            self.log(test_id, "Test ID: %s" % test_id)
+            self.log(test_id, "#################### SRC CODE ##################")
+            self.log(test_id, BuildServer.get_cmd_output('cat %s' % pycode))
 
             # run python code
             start_time = time.time()
             out, err = BuildServer.run_command('python %s' % pycode)
             total_time = time.time() - start_time
-            self.log("#################### OUTPUT ####################")
-            self.log(out)
-            self.log("#################### ERROR #####################")
-            self.log(err)
-            self.log("#################### TOTAL TIME ################")
-            self.log("Total time: %.3f seconds" % total_time)
-            self.log("################################################")
+            self.log(test_id, "#################### OUTPUT ####################")
+            self.log(test_id, out)
+            self.log(test_id, "#################### ERROR #####################")
+            self.log(test_id, err)
+            self.log(test_id, "#################### TOTAL TIME ################")
+            self.log(test_id, "Total time: %.3f seconds" % total_time)
+            self.log(test_id, "################################################")
 
 
     def main(self):
@@ -95,6 +99,7 @@ class BuildServer(object):
         msg_labels = GmailClient.CreateMsgLabels(remove_labels=['UNREAD'])
         for msg in messages:
             self.client.ModifyMessage(self.user_id, msg['id'], msg_labels)
+
 
         # process messages
         for msg in messages:
@@ -117,7 +122,7 @@ class BuildServer(object):
             generated_files = [os.path.join(store_dir, f) for f in generated_files]
 
             # send result email
-            content = '\n'.join(self.LOG) + '\n'
+            content = '\n'.join(self.LOG[test_id]) + '\n'
             message = GmailClient.CreateReplyMessageWithAttachment(message, self.my_email, content,
                                                                    generated_files)
             self.client.SendMessage('me', message)
