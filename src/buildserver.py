@@ -6,114 +6,123 @@ import time
 import re
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
-LOG = []
-DEFAULT_PYCODE = 'main.py'
-with open(os.path.join(ROOT_DIR, 'conf/my_email'), 'r') as f:
-    MY_EMAIL = f.readline().strip()
-with open(os.path.join(ROOT_DIR, 'conf/whitelist_emails'), 'r') as f:
-    lines = f.readlines()
-    lines = [l.strip() for l in lines if l.strip()]
-    WHITELIST_EMAILS = set(lines)
+DEFAULT_PYCODE_FILENAME = 'main.py'
+MY_EMAIL_FILE = 'conf/my_email'
+WHITELIST_EMAILS_FILE = 'conf/whitelist_emails'
+TARGET_DIR = 'target'
 
 
-def run_command(cmd):
-    cmd = cmd.strip().split()
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = p.communicate()
-    return out, err
+class BuildServer(object):
+    def __init__(self):
+        with open(os.path.join(ROOT_DIR, MY_EMAIL_FILE), 'r') as f:
+            self.my_email = f.readline().strip()
+        with open(os.path.join(ROOT_DIR, WHITELIST_EMAILS_FILE), 'r') as f:
+            lines = f.readlines()
+            lines = [l.strip() for l in lines if l.strip()]
+            self.whitelist_emails = set(lines)
+        self.LOG = []
+        self.client = GmailClient()
+        self.user_id = 'me'
 
 
-def get_cmd_output(cmd):
-    out, err = run_command(cmd)
-    return out.strip()
+    @staticmethod
+    def run_command(cmd):
+        cmd = cmd.strip().split()
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        return out, err
 
 
-def log(msg):
-    msg = str(msg)
-    print msg
-    LOG.append(msg.strip())
+    @staticmethod
+    def get_cmd_output(cmd):
+        out, err = BuildServer.run_command(cmd)
+        return out.strip()
 
 
-def get_from_emails_query(emails):
-    query = '{'
-    for email in emails:
-        query += 'from:%s ' % email
-    query += '}'
-    return query
+    def log(self, msg):
+        msg = str(msg)
+        print msg
+        self.LOG.append(msg.strip())
 
 
-def build(store_dir, test_id):
-    # attach source code
-    os.chdir(store_dir)
-    code_files = get_cmd_output('find %s -name *.py' % store_dir).split('\n')
-    pycode = None
-    if len(code_files) == 1:
-        pycode = code_files[0]
-    elif len(code_files) > 1:
-        if os.path.join(store_dir, DEFAULT_PYCODE) in code_files:
-            pycode = os.path.join(store_dir, DEFAULT_PYCODE)
-        else:
-            log("Error: Multiple python files found. Please set one as main.py.")
-
-    if pycode:
-        log("#################### TEST ID ###################")
-        log("Test ID: %s" % test_id)
-        log("#################### SRC CODE ##################")
-        log(get_cmd_output('cat %s' % pycode))
-
-        # run python code
-        start_time = time.time()
-        out, err = run_command('python %s' % pycode)
-        total_time = time.time() - start_time
-        log("#################### OUTPUT ####################")
-        log(out)
-        log("#################### ERROR #####################")
-        log(err)
-        log("#################### TOTAL TIME ################")
-        log("Total time: %.3f seconds" % total_time)
-        log("################################################")
+    def get_whitelist_emails_query(self):
+        query = '{'
+        for email in self.whitelist_emails:
+            query += 'from:%s ' % email
+        query += '}'
+        return query
 
 
-def main():
-    client = GmailClient()
+    def build(self, store_dir, test_id):
+        # attach source code
+        os.chdir(store_dir)
+        code_files = BuildServer.get_cmd_output('find %s -name *.py' % store_dir).split('\n')
+        pycode = None
+        if len(code_files) == 1:
+            pycode = code_files[0]
+        elif len(code_files) > 1:
+            if os.path.join(store_dir, DEFAULT_PYCODE_FILENAME) in code_files:
+                pycode = os.path.join(store_dir, DEFAULT_PYCODE_FILENAME)
+            else:
+                self.log("Error: Multiple python files found. Please set one as main.py.")
 
-    # check inbox for unread messages
-    q_from_email = get_from_emails_query(WHITELIST_EMAILS)
-    query = 'is:unread AND in:inbox AND %s AND has:attachment AND filename:py' % q_from_email
-    messages = client.ListMessagesMatchingQuery('me', query)
+        if pycode:
+            self.log("#################### TEST ID ###################")
+            self.log("Test ID: %s" % test_id)
+            self.log("#################### SRC CODE ##################")
+            self.log(BuildServer.get_cmd_output('cat %s' % pycode))
 
-    # mark messages as read
-    msg_labels = GmailClient.CreateMsgLabels(remove_labels=['UNREAD'])
-    for msg in messages:
-        client.ModifyMessage('me', msg['id'], msg_labels)
+            # run python code
+            start_time = time.time()
+            out, err = BuildServer.run_command('python %s' % pycode)
+            total_time = time.time() - start_time
+            self.log("#################### OUTPUT ####################")
+            self.log(out)
+            self.log("#################### ERROR #####################")
+            self.log(err)
+            self.log("#################### TOTAL TIME ################")
+            self.log("Total time: %.3f seconds" % total_time)
+            self.log("################################################")
 
-    # process messages
-    for msg in messages:
-        message = client.GetMessage('me', msg['id'])
 
-        # download attachments
-        test_id = "%09d" % random.randint(0, 100000000)
-        store_dir = os.path.join(ROOT_DIR, 'target', test_id)
-        if not os.path.exists(store_dir):
-            os.makedirs(store_dir)
+    def main(self):
+        # check inbox for unread messages
+        query = 'is:unread AND in:inbox AND %s AND has:attachment AND filename:py' % \
+                self.get_whitelist_emails_query()
+        messages = self.client.ListMessagesMatchingQuery(self.user_id, query)
 
-        client.GetAttachments('me', msg['id'], store_dir)
-        attachments = set(os.listdir(store_dir))
+        # mark messages as read
+        msg_labels = GmailClient.CreateMsgLabels(remove_labels=['UNREAD'])
+        for msg in messages:
+            self.client.ModifyMessage(self.user_id, msg['id'], msg_labels)
 
-        # run build job
-        build(store_dir, test_id)
+        # process messages
+        for msg in messages:
+            message = self.client.GetMessage(self.user_id, msg['id'])
 
-        # check generated files
-        generated_files = set(os.listdir(store_dir)) - attachments
-        generated_files = [os.path.join(store_dir, f) for f in generated_files]
+            # download attachments
+            test_id = "%09d" % random.randint(0, 100000000)
+            store_dir = os.path.join(ROOT_DIR, TARGET_DIR, test_id)
+            if not os.path.exists(store_dir):
+                os.makedirs(store_dir)
 
-        # send result email
-        content = '\n'.join(LOG) + '\n'
-        message = GmailClient.CreateReplyMessageWithAttachment(message, MY_EMAIL, content,
-                                                               generated_files)
+            self.client.GetAttachments(self.user_id, msg['id'], store_dir)
+            attachments = set(os.listdir(store_dir))
 
-        client.SendMessage('me', message)
+            # run build job
+            self.build(store_dir, test_id)
+
+            # check generated files
+            generated_files = set(os.listdir(store_dir)) - attachments
+            generated_files = [os.path.join(store_dir, f) for f in generated_files]
+
+            # send result email
+            content = '\n'.join(self.LOG) + '\n'
+            message = GmailClient.CreateReplyMessageWithAttachment(message, self.my_email, content,
+                                                                   generated_files)
+            self.client.SendMessage('me', message)
 
 
 if __name__ == '__main__':
-    main()
+    server = BuildServer()
+    server.main()
